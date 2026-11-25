@@ -1,0 +1,32 @@
+{
+  "name": "parliament-daily-register",
+  "version": "1.0.0",
+  "description": "Daily sign-in register for directors and officers, restricted to parliament network",
+  "scripts": {
+    "dev": "node --disable-warning=ExperimentalWarning server.mjs",
+    "build": "NODE_OPTIONS=--disable-warning=ExperimentalWarning next build",
+    "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server.mjs",
+    "create-admin": "node --disable-warning=ExperimentalWarning scripts/create-admin.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --disable-warning=ExperimentalWarning --test test/*.test.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "next": "^16.4.6",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.9",
+    "@types/react": "^19.3.1",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}
