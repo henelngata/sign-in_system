@@ -1,0 +1,7 @@
+# Local-only files: never upload these to Vercel.
+.env
+.env.local
+data/
+test/
+.next/
+node_modules/
