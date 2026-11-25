@@ -10,7 +10,7 @@ import next from 'next';
 const dev = process.env.NODE_ENV !== 'production';
 nextEnv.loadEnvConfig(process.cwd(), dev);
 
-const { allowedNetworks, isAllowed, resolveClientIp } = await import('./lib/network.mjs');
+const { allowedNetworks, allowsEverything, isAllowed, resolveClientIp } = await import('./lib/network.mjs');
 const { openDb } = await import('./lib/schema.mjs');
 
 const port = Number(process.env.PORT || 3000);
@@ -64,5 +64,6 @@ createServer((req, res) => {
 }).listen(port, host, () => {
   console.log(`Daily register (${dev ? 'development' : 'production'}) on http://${host}:${port}`);
   console.log(`Allowed networks: ${networks.entries.join(', ')}`);
+  if (allowsEverything()) console.warn('[config] ALLOWED_NETWORKS allows every address: demo mode, no network restriction.');
   console.log(`Timezone: ${process.env.TIMEZONE || 'Africa/Nairobi'}; trusted proxy hops: ${hops}`);
 });

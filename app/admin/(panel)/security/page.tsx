@@ -1,6 +1,6 @@
 import { requireAdmin } from '@/lib/session';
 import { getDeniedLog } from '@/lib/register';
-import { allowedNetworks } from '@/lib/network.mjs';
+import { allowedNetworks, allowsEverything } from '@/lib/network.mjs';
 import { localStamp } from '@/lib/time';
 
 export default async function SecurityPage() {
@@ -11,6 +11,14 @@ export default async function SecurityPage() {
   return (
     <>
       <h1>Network access</h1>
+      {allowsEverything() && (
+        <div className="flash warning" role="alert">
+          <span>
+            Open to every network: anyone on the internet can reach the register. Fine for a demo. Before real use,
+            set <code>ALLOWED_NETWORKS</code> to the parliament’s IP address(es).
+          </span>
+        </div>
+      )}
       <div className="card">
         <h2>Allowed networks</h2>
         <p className="muted">Set with the <code>ALLOWED_NETWORKS</code> setting (the <code>.env</code> file, or Vercel → Settings → Environment Variables). Restart or redeploy after changing it.</p>
