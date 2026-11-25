@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
+import { get } from '@/lib/db';
 import { burnTime, verifySecret } from '@/lib/hash.mjs';
 import { clearAdminSession, requireAdmin, setAdminSession } from '@/lib/session';
 import { getOfficer, readOfficerForm, saveOfficer, toggleOfficer, unlockOfficer } from '@/lib/register';
@@ -19,9 +19,9 @@ export async function loginAction(_prev: FormState, form: FormData): Promise<For
   const f = failures.get(username);
   if (f && f.until > Date.now()) return { errors: ['Too many failed attempts. Try again later.'] };
 
-  const admin = db.prepare('SELECT * FROM admins WHERE username = ?').get(username) as
-    | { id: number; username: string; password_hash: string }
-    | undefined;
+  const admin = await get<{ id: number; username: string; password_hash: string }>(
+    'SELECT * FROM admins WHERE username = ?', [username],
+  );
   const ok = admin ? verifySecret(password, admin.password_hash) : (burnTime(password), false);
   if (!admin || !ok) {
     const count = (f?.count ?? 0) + 1;
@@ -42,11 +42,11 @@ export async function saveOfficerAction(_prev: FormState, form: FormData): Promi
   await requireAdmin();
   const idRaw = form.get('id');
   const id = idRaw ? Number(idRaw) : null;
-  if (id !== null && !getOfficer(id)) return { errors: ['Officer not found.'] };
+  if (id !== null && !(await getOfficer(id))) return { errors: ['Officer not found.'] };
 
   const { data, errors } = readOfficerForm(form, id === null);
   if (errors.length) return { errors };
-  const saveErrors = saveOfficer(id, data);
+  const saveErrors = await saveOfficer(id, data);
   if (saveErrors.length) return { errors: saveErrors };
 
   revalidatePath('/admin', 'layout');
@@ -55,12 +55,12 @@ export async function saveOfficerAction(_prev: FormState, form: FormData): Promi
 
 export async function toggleOfficerAction(id: number) {
   await requireAdmin();
-  toggleOfficer(id);
+  await toggleOfficer(id);
   revalidatePath('/admin', 'layout');
 }
 
 export async function unlockOfficerAction(id: number) {
   await requireAdmin();
-  unlockOfficer(id);
+  await unlockOfficer(id);
   revalidatePath('/admin', 'layout');
 }

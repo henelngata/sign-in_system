@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { db, type Officer } from './db';
+import { get, type Officer } from './db';
 import { safeEqual } from './hash.mjs';
 
 /**
@@ -24,7 +24,11 @@ export type Viewer = { id: number; full_name: string; title: string };
 
 function secret() {
   const s = process.env.SESSION_SECRET;
-  if (!s) throw new Error('SESSION_SECRET missing: start the app with "npm start" (server.mjs).');
+  if (!s) {
+    throw new Error(process.env.VERCEL === '1'
+      ? 'SESSION_SECRET is not set. Add it in Vercel → Project → Settings → Environment Variables.'
+      : 'SESSION_SECRET missing: start the app with "npm start" (server.mjs).');
+  }
   return s;
 }
 
@@ -64,29 +68,27 @@ export const clearAdminSession = async () => (await cookies()).delete(KINDS.admi
 export const clearViewerSession = async () => (await cookies()).delete(KINDS.viewer.cookie);
 export const clearKioskSession = async () => (await cookies()).delete(KINDS.kiosk.cookie);
 
-const kioskOfficerById = db.prepare('SELECT * FROM officers WHERE id = ? AND active = 1');
-
 /** The officer currently identified on the sign-in screen, or null. */
 export async function getKioskOfficer(): Promise<Officer | null> {
   const id = await sessionId('kiosk');
-  return id === null ? null : ((kioskOfficerById.get(id) as Officer | undefined) ?? null);
+  if (id === null) return null;
+  return (await get<Officer>('SELECT * FROM officers WHERE id = ? AND active = 1', [id])) ?? null;
 }
-
-const adminById = db.prepare('SELECT id, username FROM admins WHERE id = ?');
-const viewerById = db.prepare(
-  'SELECT id, full_name, title FROM officers WHERE id = ? AND active = 1 AND can_view_board = 1',
-);
 
 /** The logged-in admin, or null. Re-checks the database so removed admins lose access at once. */
 export async function getAdmin(): Promise<Admin | null> {
   const id = await sessionId('admin');
-  return id === null ? null : ((adminById.get(id) as Admin | undefined) ?? null);
+  if (id === null) return null;
+  return (await get<Admin>('SELECT id, username FROM admins WHERE id = ?', [id])) ?? null;
 }
 
 /** The logged-in director, or null. Loses access as soon as the admin removes permission. */
 export async function getViewer(): Promise<Viewer | null> {
   const id = await sessionId('viewer');
-  return id === null ? null : ((viewerById.get(id) as Viewer | undefined) ?? null);
+  if (id === null) return null;
+  return (await get<Viewer>(
+    'SELECT id, full_name, title FROM officers WHERE id = ? AND active = 1 AND can_view_board = 1', [id],
+  )) ?? null;
 }
 
 /** Use at the top of every admin page and every admin Server Function. */
@@ -103,7 +105,7 @@ export async function requireBoardAccess(): Promise<{ admin: Admin | null; viewe
   return { admin, viewer };
 }
 
-/** Client IP verified by server.mjs. */
+/** Client IP verified by server.mjs, or by proxy.ts on Vercel. */
 export async function clientIp() {
   return (await headers()).get('x-client-ip') ?? 'unknown';
 }

@@ -10,7 +10,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const { date } = await searchParams;
   const today = localDay();
   const day = isDay(date) && date <= today ? date : today;
-  const rows = getRegister(day);
+  const rows = await getRegister(day);
   const present = rows.filter((r) => r.sign_in_at && !r.sign_out_at).length;
   const left = rows.filter((r) => r.sign_out_at).length;
   const absent = rows.filter((r) => !r.sign_in_at).length;

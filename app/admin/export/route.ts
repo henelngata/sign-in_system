@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   const to = isDay(url.searchParams.get('to')) ? url.searchParams.get('to')! : from;
 
   const lines = [['Date', 'Staff No', 'Name', 'Title', 'Department', 'Time In', 'IP In', 'Time Out', 'IP Out'].join(',')];
-  for (const r of getExportRows(from, to)) {
+  for (const r of await getExportRows(from, to)) {
     lines.push([r.day, r.staff_no, r.full_name, r.title, r.department,
       localTime(r.sign_in_at), r.sign_in_ip, localTime(r.sign_out_at), r.sign_out_ip].map(csvCell).join(','));
   }

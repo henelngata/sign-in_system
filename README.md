@@ -1,6 +1,8 @@
 # Parliament Daily Register
 
-A sign-in and sign-out register for directors and officers, built with **Next.js 16** (App Router, Server Functions) and SQLite.
+A sign-in and sign-out register for directors and officers, built with **Next.js 16** (App Router, Server Functions) and SQLite (a local file, or hosted Turso on Vercel).
+
+It runs either on your **own server** (`npm start`) or on **Vercel**. See [Deploying on Vercel](#deploying-on-vercel).
 
 It **only works from the parliament network**. Requests from any other IP address get an "Access restricted" page, and each blocked attempt is logged. That covers pages, the admin area, static files and Server Function calls.
 
@@ -26,11 +28,11 @@ Next.js on its own can't reliably tell you the visitor's IP. With `next start`, 
 1. **`server.mjs`** (Next's documented custom-server setup) reads the IP from the TCP connection and blocks anything outside `ALLOWED_NETWORKS` before Next.js runs. It removes any client-supplied `x-client-ip`, then passes the verified IP to the app in that header, along with a random token generated each time the server starts.
 2. **`proxy.ts`** rejects any request that doesn't carry that token. If someone starts the app with plain `next start` by mistake, everything returns 403 instead of running without the IP check.
 
-**Always start the app with `npm start` or `npm run dev`, never `next start`.**
+**On your own server, always start the app with `npm start` or `npm run dev`, never `next start`.** On Vercel there is no `server.mjs`. There, `proxy.ts` does the IP check itself using the IP that Vercel's edge reports (see below).
 
 ## Setup
 
-Requires Node.js 22.13 or later. The database is SQLite, built into Node, so there is no separate database server.
+Requires Node.js 22.13 or later. Locally the database is a SQLite file (`data/register.db`), so there is no separate database server.
 
 ```bash
 npm install
@@ -85,6 +87,41 @@ Why not a native app:
 
 **Decide whether officers may sign from their own phones.** It's allowed today if the phone is on parliament Wi-Fi. That's convenient, but anyone within Wi-Fi range (car park, nearby café) can sign, and an officer could sign for a colleague who shared their PIN. If that matters, give the entrance tablets a fixed IP or their own network segment, and set `ALLOWED_NETWORKS` to only those addresses. Then signing is only possible at the door. Directors and admins would also need to be on those addresses, so if you want to separate the two, raise it and the app can be given a separate kiosk-only rule.
 
+## Deploying on Vercel
+
+Vercel runs only the Next.js part, not `server.mjs`. The app detects this (`VERCEL=1`) and switches to Vercel mode:
+
+- **IP check.** `proxy.ts` reads the visitor's IP from `x-real-ip` / `x-forwarded-for`. Vercel's edge sets these itself and [overwrites anything the visitor sends](https://vercel.com/docs/headers/request-headers#x-forwarded-for), so they can't be faked. Outsiders get the "Access restricted" page, and attempts are logged.
+- **Database.** Vercel's filesystem is temporary and not shared between instances, so a SQLite file would lose data. Use a hosted **Turso** (libSQL) database. It speaks SQLite, so the code is the same.
+
+### Steps
+
+1. **Create the database.** In the Vercel dashboard, open **Storage / Marketplace**, choose **Turso**, and connect it to this project. That sets `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN`. (Or create it at turso.tech and add both variables yourself.)
+2. **Set environment variables** (Project → Settings → Environment Variables):
+   | Variable | Value |
+   | --- | --- |
+   | `ALLOWED_NETWORKS` | The parliament's **public** IP address(es) (see below) |
+   | `SESSION_SECRET` | A long random string: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
+   | `TIMEZONE` | `Africa/Nairobi` |
+   | `ORG_NAME` | e.g. `Parliament` |
+   | `SECURE_COOKIES` | `true` |
+3. **Redeploy** so the new variables take effect. Tables are created automatically on the first request.
+4. **Create the first admin** in the hosted database, from your computer:
+   ```bash
+   TURSO_DATABASE_URL=libsql://… TURSO_AUTH_TOKEN=… npm run create-admin -- clerk
+   ```
+
+### The IP rule changes on Vercel: use the parliament's public IP
+
+On your own server inside the building, the app sees internal addresses like `10.10.4.20`. On Vercel the app is on the internet, so it sees the address the parliament's traffic **leaves the building from**: its public IP, shared by everyone inside through the router/NAT. Internal ranges like `10.x` or `192.168.x` will never match on Vercel.
+
+- Ask ICT for the parliament's **static public IP(s)**, or check from inside the building at a site like ifconfig.me. Put those in `ALLOWED_NETWORKS`, for example `41.90.12.34` or `41.90.12.32/29`.
+- **The public IP must be static.** If it's dynamic, it will change and lock everyone out until the setting is updated.
+- **Everything behind that public IP is allowed**, including guest Wi-Fi if it shares the same internet connection. Ask ICT to give guest Wi-Fi a different public IP, or accept that risk.
+- Staff on mobile data (not parliament Wi-Fi) are blocked, which is what you want.
+
+If the parliament can't provide a static public IP, or guest Wi-Fi can't be separated, host the app on an internal server instead (the setup above). There, the check uses internal addresses and the app isn't reachable from the internet at all.
+
 ## Getting the network restriction right
 
 1. **Get the exact ranges from ICT.** Ask for every LAN, Wi-Fi and VPN range that counts as "the workplace", for example `10.10.0.0/16` or `192.168.20.0/24`, and put them in `ALLOWED_NETWORKS`.
@@ -120,5 +157,7 @@ WantedBy=multi-user.target
 Run `npm run build` first, then `sudo systemctl enable --now register`.
 
 ## Backups
+
+On Vercel, the data lives in Turso, which has its own backups and point-in-time restore (see the Turso dashboard). On your own server:
 
 All data is in `data/register.db`. Back it up regularly, for example with a nightly copy using `sqlite3 data/register.db ".backup backup.db"`.

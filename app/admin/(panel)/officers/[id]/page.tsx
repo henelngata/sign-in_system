@@ -6,7 +6,7 @@ import OfficerForm from '@/components/OfficerForm';
 export default async function EditOfficerPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;
-  const officer = /^\d+$/.test(id) ? getOfficer(Number(id)) : undefined;
+  const officer = /^\d+$/.test(id) ? await getOfficer(Number(id)) : undefined;
   if (!officer) notFound();
   const { pin_hash: _omit, ...safe } = officer; // never send the hash to the browser
   return (

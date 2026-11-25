@@ -50,11 +50,11 @@ after(() => {
 const decode = (s) => s.replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 /** Cookie-keeping client that can submit Server Function forms the way a no-JS browser does. */
-function client(host = '127.0.0.1', port = PORT) {
+function client(host = '127.0.0.1', port = PORT, extraHeaders = {}) {
   const jar = new Map();
   const origin = `http://${host.includes(':') ? `[${host}]` : host}:${port}`;
   async function req(p, opts = {}) {
-    const headers = { ...(opts.headers || {}) };
+    const headers = { ...extraHeaders, ...(opts.headers || {}) };
     if (jar.size) headers.cookie = [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
     const res = await fetch(origin + p, { redirect: 'manual', ...opts, headers });
     for (const c of res.headers.getSetCookie()) {
@@ -313,4 +313,38 @@ test('Server Function from a foreign origin is rejected', async () => {
   body.set('staff_no', 'DIR-001'); body.set('pin', '4821'); body.set('action', 'in');
   const res = await c.req('/', { method: 'POST', body, headers: { origin: 'https://evil.example' } });
   assert.notEqual(res.status, 200);
+});
+
+test('on Vercel (no server.mjs): IP comes from the edge header, outsiders blocked, IP recorded', async () => {
+  const port = PORT + 2;
+  await start('node', ['node_modules/next/dist/bin/next', 'start', '-p', String(port), '-H', '127.0.0.1'], {
+    VERCEL: '1',
+    TURSO_DATABASE_URL: `file:${DB}`, // stands in for the hosted database
+    ALLOWED_NETWORKS: '41.90.0.0/16',  // e.g. the parliament's public range
+  }, 'Ready');
+
+  // Vercel's edge sets x-real-ip to the visitor's address.
+  const outsider = client('127.0.0.1', port, { 'x-real-ip': '203.0.113.9' });
+  const blocked = await outsider.req('/');
+  assert.equal(blocked.status, 403);
+  assert.match(await blocked.text(), /Access restricted[\s\S]*203\.0\.113\.9/);
+  assert.equal((await outsider.req('/_next/static/chunks/x.js')).status, 403);
+
+  // A visitor can't smuggle in an allowed IP through the app's internal header.
+  const sneaky = client('127.0.0.1', port, { 'x-real-ip': '203.0.113.9', 'x-client-ip': '41.90.1.1' });
+  assert.equal((await sneaky.req('/')).status, 403);
+
+  // Allowed network: full sign-in works and the edge-reported IP is recorded.
+  const inside = client('127.0.0.1', port, { 'x-real-ip': '41.90.12.34' });
+  assert.equal((await inside.req('/')).status, 200);
+  assert.equal(statusOf(await identify(inside, 'DIR-009', '9090')), 'none');
+  const res = flashOf(await (await inside.submit('/', 'action', { action: 'in' })).text());
+  assert.equal(res[0], 'success');
+
+  const db = new DatabaseSync(DB);
+  const row = db.prepare("SELECT a.sign_in_ip FROM attendance a JOIN officers o ON o.id = a.officer_id WHERE o.staff_no = 'DIR-009'").get();
+  const denied = db.prepare("SELECT COUNT(*) AS n FROM access_denied WHERE ip = '203.0.113.9'").get().n;
+  db.close();
+  assert.equal(row.sign_in_ip, '41.90.12.34');
+  assert.ok(denied >= 2, 'blocked attempts are logged on Vercel too');
 });

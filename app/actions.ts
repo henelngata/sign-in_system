@@ -10,7 +10,7 @@ export type IdentifyState = { error: string } | null;
 
 /** Step 1: staff number + PIN. On success the page re-renders showing that officer's status. */
 export async function identifyAction(_prev: IdentifyState, form: FormData): Promise<IdentifyState> {
-  const auth = authenticateOfficer(form.get('staff_no'), form.get('pin'));
+  const auth = await authenticateOfficer(form.get('staff_no'), form.get('pin'));
   if ('error' in auth) return { error: auth.error.text };
   await setKioskSession(auth.officer.id);
   revalidatePath('/');
@@ -34,7 +34,7 @@ export async function signAction(_prev: SignResult, form: FormData): Promise<Sig
     return { id, type: 'error', action: null, time: '', firstName: '', text: 'Your session timed out. Please enter your staff number and PIN again.' };
   }
   const action = form.get('action');
-  const msg = signInOut(officer, action, await clientIp());
+  const msg = await signInOut(officer, action, await clientIp());
   await clearKioskSession();
   revalidatePath('/');
   return {

@@ -10,7 +10,7 @@ export default async function KioskPage() {
   const officer = await getKioskOfficer();
   let view: KioskOfficer | null = null;
   if (officer) {
-    const record = todayRecord(officer.id);
+    const record = await todayRecord(officer.id);
     view = {
       fullName: officer.full_name,
       firstName: officer.full_name.split(/\s+/)[0]!,

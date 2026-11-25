@@ -10,7 +10,7 @@ export const metadata = { title: 'Who’s in' };
 export default async function WhosInPage() {
   const { viewer } = await requireBoardAccess();
   const today = localDay();
-  const rows = getRegister(today);
+  const rows = await getRegister(today);
   const inBuilding = rows.filter((r) => r.sign_in_at && !r.sign_out_at)
     .sort((a, b) => a.sign_in_at!.localeCompare(b.sign_in_at!));
   const left = rows.filter((r) => r.sign_out_at);

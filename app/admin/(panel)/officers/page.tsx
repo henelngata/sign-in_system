@@ -14,7 +14,7 @@ const NOTICES: Record<string, string> = {
 export default async function OfficersPage({ searchParams }: { searchParams: Promise<{ notice?: string }> }) {
   await requireAdmin();
   const { notice } = await searchParams;
-  const officers = listOfficers();
+  const officers = await listOfficers();
   const now = new Date();
 
   return (

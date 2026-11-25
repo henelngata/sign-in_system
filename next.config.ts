@@ -2,6 +2,8 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Load the database client from node_modules at runtime instead of bundling it (it has native parts).
+  serverExternalPackages: ['@libsql/client', 'libsql'],
   async headers() {
     return [
       {

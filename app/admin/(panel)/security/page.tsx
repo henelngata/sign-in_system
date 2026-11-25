@@ -5,7 +5,7 @@ import { localStamp } from '@/lib/time';
 
 export default async function SecurityPage() {
   await requireAdmin();
-  const entries = getDeniedLog();
+  const entries = await getDeniedLog();
   const networks = allowedNetworks().entries;
 
   return (
@@ -13,7 +13,7 @@ export default async function SecurityPage() {
       <h1>Network access</h1>
       <div className="card">
         <h2>Allowed networks</h2>
-        <p className="muted">Set in <code>ALLOWED_NETWORKS</code> in the <code>.env</code> file. Restart the app after changing it.</p>
+        <p className="muted">Set with the <code>ALLOWED_NETWORKS</code> setting (the <code>.env</code> file, or Vercel → Settings → Environment Variables). Restart or redeploy after changing it.</p>
         <ul className="nets">{networks.map((n) => <li key={n}><code>{n}</code></li>)}</ul>
       </div>
       <div className="card">

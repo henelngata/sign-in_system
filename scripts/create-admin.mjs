@@ -30,14 +30,20 @@ if (!password) {
 }
 if (password.length < 10) { console.error('Password must be at least 10 characters.'); process.exit(1); }
 
-const db = openDb();
+// Uses TURSO_DATABASE_URL / TURSO_AUTH_TOKEN if set (the hosted database used on Vercel),
+// otherwise the local SQLite file.
+const db = await openDb();
+const where = process.env.TURSO_DATABASE_URL ? 'hosted database' : 'local database';
 const hash = hashSecret(password);
-const existing = db.prepare('SELECT id FROM admins WHERE username = ?').get(username);
+const existing = (await db.execute({ sql: 'SELECT id FROM admins WHERE username = ?', args: [username] })).rows[0];
 if (existing) {
-  db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, existing.id);
-  console.log(`Password reset for admin "${username}".`);
+  await db.execute({ sql: 'UPDATE admins SET password_hash = ? WHERE id = ?', args: [hash, existing.id] });
+  console.log(`Password reset for admin "${username}" (${where}).`);
 } else {
-  db.prepare('INSERT INTO admins (username, password_hash, created_at) VALUES (?, ?, ?)')
-    .run(username, hash, new Date().toISOString());
-  console.log(`Admin "${username}" created.`);
+  await db.execute({
+    sql: 'INSERT INTO admins (username, password_hash, created_at) VALUES (?, ?, ?)',
+    args: [username, hash, new Date().toISOString()],
+  });
+  console.log(`Admin "${username}" created (${where}).`);
 }
+db.close();
